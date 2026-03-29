@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sleek Notes</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Authentication View -->
+        <div id="auth-view" class="glass-container">
+            <h1 id="auth-title">Welcome Back</h1>
+            <p id="auth-subtitle" class="subtitle">Log in to safely access your personal notes.</p>
+            
+            <form id="auth-form">
+                <input type="text" id="auth-username" placeholder="Username" required autocomplete="username">
+                
+                <div id="register-fields" style="display: none; width: 100%;">
+                    <input type="email" id="auth-email" placeholder="Email Address" style="width: 100%; margin-bottom: 1.25rem;">
+                </div>
+
+                <input type="password" id="auth-password" placeholder="Password" required autocomplete="current-password">
+                
+                <button type="submit" id="auth-btn">Log In</button>
+            </form>
+
+            <div class="switch-view">
+                <p id="switch-text">Don't have an account? <span id="switch-action">Sign up</span></p>
+            </div>
+        </div>
+
+        <!-- Main Dashboard View -->
+        <div id="dashboard-view" class="glass-container hidden">
+            <div class="header-row">
+                <h1>My Notes</h1>
+                <button id="logout-btn" class="btn-secondary">Log Out</button>
+            </div>
+
+            <form id="note-creator-form" class="note-creator-form">
+                <input type="text" id="note-title" placeholder="Note Title..." required>
+                <textarea id="note-content" placeholder="Write something brilliant..." required></textarea>
+                <button type="submit" style="align-self: flex-end;">Create Note</button>
+            </form>
+
+            <div id="notes-grid" class="notes-grid">
+                <!-- Notes will be dynamically injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast">Message here</div>
+
+    <script src="app.js"></script>
+</body>
+</html>

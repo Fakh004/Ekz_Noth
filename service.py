@@ -1,81 +1,63 @@
 import uuid
-from database import get_connection
+from sqlalchemy.orm import Session
+import models, schemas, auth
 
 
-def register_user(username, password):
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        try:
-            cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
-            conn.commit()
-            return {"status": 200, "msg": "Registered!"}
-        except:
-            return {"status": 400, "msg": "User already exists"}
+def create_user(db: Session, user_data: schemas.UserCreate):
+    hashed_pwd = auth.hash_password(user_data.password)
+    db_user = models.User(
+        username=user_data.username,
+        email=user_data.email,
+        password=hashed_pwd,
+        is_admin=False 
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
 
-
-def login_user(username, password):
-    conn = get_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
-        user = cursor.fetchone()        
-        print(f"Попытка входа: {username}, Найдено в базе: {dict(user) if user else 'Ничего'}")
-
-        if user:
-            new_token = str(uuid.uuid4())
-            cursor.execute("INSERT INTO tokens (user_id, token) VALUES (?, ?)", (user["id"], new_token))           
-            conn.commit() 
-            return {"status": 200, "token": new_token, "msg": "Login success"}
-        return {"status": 401, "msg": "Wrong username or password"}
-    except Exception as e:
-        print(f"Ошибка базы данных: {e}")
-        return {"status": 500, "msg": "Internal server error"}
-    finally:
-        conn.close()
-
-def logout_user(user_id: str):
-    conn = get_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("DELETE FROM tokens WHERE user_id = ?", (user_id,))
-        conn.commit()
-        return {"status": 200, "msg": "Logout success"}
-    except Exception as e:
-        print(f"Ошибка базы данных: {e}")
-        return {"status": 500, "msg": "Internal server error"}
-    finally:
-        conn.close()
-
-def create_notif(user_id, msg):
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO notifications (user_id, message) VALUES (?, ?)", (user_id, msg))
-        conn.commit()
-        return {"status": 200, "msg": "Notification created!"}
-
-def get_all_notifs():
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT notifications.id, notifications.message, users.username, notifications.created_at 
-            FROM notifications 
-            JOIN users ON notifications.user_id = users.id
-            ORDER BY created_at DESC
-        """)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+def authenticate_user(db: Session, username_or_email: str, password: str):
+    user = db.query(models.User).filter(
+        (models.User.username == username_or_email) | (models.User.email == username_or_email)
+    ).first()
     
-def delete_notification_by_id(notif_id: int):
-    conn = get_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("SELECT id FROM notifications WHERE id = ?", (notif_id,))
-        if not cursor.fetchone():
-            return {"status": 404, "msg": f"Notification with ID {notif_id} not found"}
-        cursor.execute("DELETE FROM notifications WHERE id = ?", (notif_id,))
-        conn.commit()
-        return {"status": 200, "msg": f"Notification {notif_id} deleted successfully"}
-    except Exception as e:
-        return {"status": 500, "msg": f"Error: {e}"}
-    finally:
-        conn.close()
+    if not user or not auth.verify_password(password, user.password):
+        return None
+    return user
+
+
+def create_session(db: Session, user_id: int):
+    session_id = str(uuid.uuid4())
+    new_session = models.Session(id=session_id, user_id=user_id)
+    db.add(new_session)
+    db.commit()
+    return session_id
+
+def get_user_by_session(db: Session, session_id: str):
+    if not session_id:
+        return None
+    session_record = db.query(models.Session).filter(models.Session.id == session_id).first()
+    if session_record:
+        return session_record.user
+    return None
+
+
+def create_note(db: Session, note_data: schemas.NoteCreate, user_id: int):
+    new_note = models.Note(**note_data.model_dump(), user_id=user_id)
+    db.add(new_note)
+    db.commit()
+    db.refresh(new_note)
+    return new_note
+
+def get_user_notes(db: Session, user: models.User):
+    if user.is_admin:
+        return db.query(models.Note).all()
+    return user.notes
+
+def delete_note(db: Session, note_id: int, user_id: int):
+    note = db.query(models.Note).filter(models.Note.id == note_id, models.Note.user_id == user_id).first()
+    if note:
+        db.delete(note)
+        db.commit()
+        return True
+    return False
